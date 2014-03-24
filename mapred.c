@@ -1,7 +1,31 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <sys/types.h>
+#include <sys/syscall.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <ctype.h>
+/*
+ * @author: Hua Yang
+ * @RUID: 128-00-2637
+ * @author: Erik Kamp
+ * @RUID: 132-00-4838
+ * @author: Sharlina Keshava
+ * @RUID: 140-00-9007
+ */
+
+/*
+
+	@param :
+		fileName , the name of the file to be split into new files containing each 1000 orso to be read faster by the mappers
+*/
+
+void splitFile(char * fileName)
+{
+	char *splitFile[]={"split",fileName,"FILE:"};
+	execvp("split",splitFile);
+}
+
 
 /*
 @param : name
@@ -9,6 +33,8 @@
 
 This funciton reads in a file and prints it to the console taking in the name of the file as input
 */
+
+
 void readFile(char* name){
 	int c;
 	FILE * fileName;
@@ -69,15 +95,11 @@ int main(int argc, char **argv)
 	
 	//Set the out file as the first argument from the commandline
 	output = fopen(argv[1],"w");
+	// Before reading in the file make sure to split, the file in 25 or less parts, in his example he uses 25 soooo im just going to use it for now
+	splitFile(argv[2]);
 	//Print the file specified by the second argument in the command line
 	readFile(argv[2]);
 
-	/*print to file here*/
-
-
-	/*print and free*/
-	//print(head,output);
-	//freecharnode(head);
 	fclose(output);
 	return 0;
 }
