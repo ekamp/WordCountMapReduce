@@ -5,6 +5,8 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <ctype.h>
+#include "uthash.h"
+
 /*
  * @author: Hua Yang
  * @RUID: 128-00-2637
@@ -14,10 +16,38 @@
  * @RUID: 140-00-9007
  */
 
-/*
+//Initializing the struct to be used for the hashmap
+struct wordDictionary
+{
+	char * word; //Using this as the key, this will be the word itself
+	int value;
+	UT_hash_handle hashHandle;	
+};typedef struct wordDictionary *wordDictionaryPtr;
 
-	@param :
-		fileName , the name of the file to be split into new files containing each 1000 orso to be read faster by the mappers
+/*
+	@param word : the desired word that one wishes to know the value of it is the ket and this will get the value
+*/
+
+wordDictionaryPtr *dictionaryPointer = NULL;
+
+	wordDictionaryPtr findWord(char * word)
+	{
+		wordDictionaryPtr *myDiction;
+		HASH_FIND_STR(dictionaryPointer,&word,myDiction);
+		return myDiction;
+	}
+
+/*
+ *	@param addedWord : word to be added to the hash table
+ */
+
+	void addWordOccurance(wordDictionaryPtr *addedWord)
+	{
+		HASH_ADD_STR(dictionaryPointer,addedWord->word,addedWord);
+	}
+
+/*
+	@param fileName : the name of the file to be split into new files containing each 1000 orso to be read faster by the mappers
 */
 
 void splitFile(char * fileName)
@@ -28,8 +58,7 @@ void splitFile(char * fileName)
 
 
 /*
-@param : name
-	String that contains the name of the input file
+@param name : String that contains the name of the input file
 
 This funciton reads in a file and prints it to the console taking in the name of the file as input
 */
