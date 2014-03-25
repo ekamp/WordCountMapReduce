@@ -17,18 +17,18 @@
  */
 
 //Initializing the struct to be used for the hashmap
-struct wordDictionary
+/*struct wordDictionary
 {
 	char * word; //Using this as the key, this will be the word itself
 	int value;
 	UT_hash_handle hashHandle;	
 };typedef struct wordDictionary *wordDictionaryPtr;
-
+*/
 /*
 	@param word : the desired word that one wishes to know the value of it is the ket and this will get the value
 */
 
-wordDictionaryPtr *dictionaryPointer = NULL;
+/*wordDictionaryPtr *dictionaryPointer = NULL;
 
 	wordDictionaryPtr findWord(char * word)
 	{
@@ -36,24 +36,27 @@ wordDictionaryPtr *dictionaryPointer = NULL;
 		HASH_FIND_STR(dictionaryPointer,&word,myDiction);
 		return myDiction;
 	}
-
+*/
 /*
  *	@param addedWord : word to be added to the hash table
  */
 
-	void addWordOccurance(wordDictionaryPtr *addedWord)
+/*	void addWordOccurance(wordDictionaryPtr *addedWord)
 	{
 		HASH_ADD_STR(dictionaryPointer,addedWord->word,addedWord);
 	}
-
+*/
 /*
 	@param fileName : the name of the file to be split into new files containing each 1000 orso to be read faster by the mappers
 */
 
 void splitFile(char * fileName)
 {
-	char *splitFile[]={"split",fileName,"FILE:"};
-	execvp("split",splitFile);
+	char *splitFile[]={"./split.sh",fileName,"25"};
+    if(fork() == 0)
+    {
+	    execvp("./split.sh",splitFile);
+    }
 }
 
 
