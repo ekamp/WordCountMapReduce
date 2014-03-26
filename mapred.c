@@ -48,14 +48,25 @@
 */
 /*
 	@param fileName : the name of the file to be split into new files containing each 1000 orso to be read faster by the mappers
+	@param numberOfPieces : the number of pieces the file will be split into. This will coorespond to the number of mappers so that one mapper gets one piece
 */
 
-void splitFile(char * fileName)
+void splitFile(char * fileName, char * numberOfPieces)
 {
-	char *splitFile[]={"./split.sh",fileName,"25"};
     if(fork() == 0)
     {
-	    execvp("./split.sh",splitFile);
+    	char * varNumber = "23";
+    	//Need to null terminate the array of inputs, ugh -________-
+    	char *splitFile[]={"./split.sh",fileName,numberOfPieces,NULL};
+    	//printf("The file name is %s and the number of pieces %s\n",fileName,numberOfPieces);
+	    if (execvp("./split.sh",splitFile) < 0)
+	    {
+	    	perror("./split.sh");
+	    }
+    }
+    else
+    {
+    	//Parent thread
     }
 }
 
@@ -73,6 +84,8 @@ void readFile(char* name){
 	struct dirent *data;
 	char * nextName;
 	char * relPath;
+
+	
 
 	//Check to make sure the name is legal
 	if(name==NULL||name[strlen(name)-1]=='.')
@@ -95,28 +108,54 @@ void readFile(char* name){
 	}
 }
 
-
-
 int main(int argc, char **argv)
 {
 	FILE *output;
 	char safety;
 	char tooMany;
 
+	char * typeOfRun; 
+	char * threadOrProc;
+	char * infile;
+	char * outfile;
+	char * numberOfMappers;
+	int numberOfReducers;
+
+	//Inputs from the command line are as follows (11 inputs including the .o file)
+	//-a [wordcount,sort]   : states whether the user wants to use the wordcount mapred or int sort mapred (typeOfRun)
+	//-i [procs,threads]    : states whether the user wishes to use processes or threads (threadOrProc)
+	//-m num_maps 			: provides the number of mappers for the program (numberOfMappers)
+	//-r num_reducers		: provides the number of reducers for the program (numberOfReducers)
+	//infile 				: the file to be read in by the program (infile)
+	//outfile				: the file to be writen to by the program (outfile)
+
+	//Assign the variables from the input taken from the command line args
+	typeOfRun = argv[2];
+	threadOrProc = argv[4];
+	numberOfMappers = argv[6];
+	numberOfReducers = atoi(argv[8]);
+	infile = argv[9];
+	outfile = argv[10];
+
+
+	printf("Type of run is : %s\nWe are running on : %s\nThe number of mappers we have is : %s\nThe number of reducers is : %i\nThe input file name is : %s\nThe output file name is : %s\nThe number of args we have is : %i\n",
+		typeOfRun,threadOrProc,numberOfMappers,numberOfReducers,infile,outfile,argc);
+
 	/*If incorrect number of arguments */
-	if (argc != 3)
+	if (argc != 11)
 	{
 		fprintf(stderr, "ERROR: Incorrect number of arguments\n");
 		return 0;
 	}
 
 	/*disallow overwiting our source files in the output*/
-	if (strcmp(argv[1],"libws.a")==0||strcmp(argv[1],"wordstat.o")==0||strcmp(argv[1],"index")==0||strcmp(argv[1],"indexer.c")==0||strcmp(argv[1],"indexer.h")==0||strcmp(argv[1],"Makefile")==0||strcmp(argv[1],"readme.pdf")==0||strcmp(argv[1],"testplan.txt")==0||strcmp(argv[1],"wordstat.c")==0||strcmp(argv[1],"wordstat.h")==0){
+	if (strcmp(outfile,"mapred.o")==0||strcmp(outfile,"Makefile")==0||strcmp(outfile,"readme.pdf")==0)
+	{
 		fprintf(stderr, "Please don't try to overwrite our sourcefiles with the output\n");
 		return 0;
 	}
 
-	if ((output=fopen(argv[1],"r"))!=NULL){
+	if ((output=fopen(outfile,"r"))!=NULL){
 		fclose(output);
 		fprintf(stdout, "The file designated for output already exists, are you sure you wish to overwite it? (y/n)");
 		if(fscanf(stdin, "%c%c", &safety, &tooMany)!=2||safety!='y'||tooMany!='\n'){
@@ -126,12 +165,11 @@ int main(int argc, char **argv)
 	}
 	
 	//Set the out file as the first argument from the commandline
-	output = fopen(argv[1],"w");
+	output = fopen(outfile,"w");
 	// Before reading in the file make sure to split, the file in 25 or less parts, in his example he uses 25 soooo im just going to use it for now
-	splitFile(argv[2]);
-	//Print the file specified by the second argument in the command line
-	readFile(argv[2]);
-
+	splitFile(infile,numberOfMappers); 
+	//Print the file specified by the second argument in the command line uncomment this if you want to print the file
+	//readFile(infile);
 	fclose(output);
 	return 0;
 }
