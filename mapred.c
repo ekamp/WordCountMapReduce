@@ -55,7 +55,6 @@ void splitFile(char * fileName, char * numberOfPieces)
 {
     if(fork() == 0)
     {
-    	char * varNumber = "23";
     	//Need to null terminate the array of inputs, ugh -________-
     	char *splitFile[]={"./split.sh",fileName,numberOfPieces,NULL};
     	//printf("The file name is %s and the number of pieces %s\n",fileName,numberOfPieces);
