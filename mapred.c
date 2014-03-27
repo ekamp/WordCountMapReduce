@@ -16,24 +16,27 @@
 #include <ctype.h>
 #include "uthash.h"
 
+#define wordBufferSize 4096
+
 // Initializing the struct to be used for the hashmap
 struct
 wordDictionary
 {
 	char* key; // using the word as the key
 	int value; // number of occurrence of the word
-	UT_hash_handle hashHandle;	
+	UT_hash_handle hh;	
 }; typedef struct wordDictionary *wordDictionaryPtr;
 
 /*
  * @param word : the desired word that one wishes to know the value of it is the ket and this will get the value
  */
-wordDictionaryPtr dictionaryPointer = NULL;
+wordDictionaryPtr global_wdptr = NULL;
 
-wordDictionaryPtr findWord(char* word)
+wordDictionaryPtr
+findWord(char* word, wordDictionaryPtr wdptr)
 {
 	wordDictionaryPtr ptr;
-	HASH_FIND_STR(dictionaryPointer, &word, ptr);
+	HASH_FIND_STR(wdptr, word, ptr);
 	return ptr;
 }
 
@@ -43,7 +46,7 @@ wordDictionaryPtr findWord(char* word)
  * @param word : word to be added to the hash table
  */
 void
-addWord(char* word)
+addWord(char* word, wordDictionaryPtr wdptr)
 {
 	wordDictionaryPtr addWord;
 	addWord = malloc(sizeof(struct wordDictionary));
@@ -51,10 +54,14 @@ addWord(char* word)
 	strcpy(addWord->key, word);
 	addWord->value = 1;
 
-	HASH_ADD_STR(dictionaryPointer, key, addedWord);
+	HASH_ADD_STR(wdptr, key, addWord);
 }
 
 void
+incrementWord(wordDictionaryPtr wdptr)
+{
+	wdptr->value++;
+}
 
 /*
  * @param fileName : the name of the file to be split into new files containing each 1000 orso to be read faster by the mappers
@@ -63,7 +70,7 @@ void
 void
 deleteGeneratedFiles(char* file)
 {
-	int len = strlen(file)+5;
+	int len = strlen(file) + 5;
 	char* cmd = (char*) calloc(len, sizeof(char));
 	strcat(cmd, "rm ");
 	strcat(cmd, file);
@@ -97,29 +104,74 @@ splitFile(char* fileName, char* numberOfPieces)
  * @param name : String that contains the name of the input file
  */
 void
-readFile(char* name) 
+readFile(char* name, wordDictionaryPtr wdptr) 
 {
 	int c;
-	FILE * fileName;
+	FILE* fp;
 	struct dirent *data;
-	char * nextName;
-	char * relPath;
+	char* nextName,
+		* relPath,
+		* token;
+	char word[wordBufferSize];
+	wordDictionaryPtr tempWDPtr;
+
 
 	//Check to make sure the name is legal
-	if(name==NULL||name[strlen(name)-1]=='.') {
+	if(name == NULL || name[strlen(name)-1] == '.') {
 		return;
 	}
 	//Make sure the file exists
-	if ((fileName = fopen(name,"r")) != NULL) {
-			//Loop over the characters of the file in order to print them to the console
-			while ((c = getc(fileName)) != EOF)
-        		printf("%c",c);
-        	//Close the file after reading
-			fclose(fileName);
-	}
-	else {
+	if ((fp = fopen(name, "r")) != NULL) {
+		//Loop over the characters of the file in order to print them to the console
+		while (fgets(word, wordBufferSize, fp) != NULL) {
+			token = strtok(word, " .,:;!?/\'\"*#-_<>()~1234567890\r\n");
+			while (token) {
+    			printf("[%s]\n",token);
+
+    			tempWDPtr = findWord(token, wdptr);
+    			if (tempWDPtr) { // if word already exist
+    				printf("ALREADY EXIST\n");
+    				incrementWord(tempWDPtr);
+    			} else { // if no word is found
+    				printf("DOESNT EXIST\n");
+    				addWord(token, wdptr);
+    				if (findWord(token, wdptr)) {
+    					printf("SAVED!\n");
+    				} else {
+    					printf("BROKEN\n");
+    				}
+    			}
+
+    			token = strtok(NULL, " .,:;!?\'\"*#-_<>()~1234567890\r\n");
+			}
+		}
+    	//Close the file after reading
+		fclose(fp);
+	} else {
 		fprintf(stderr , "ERROR: %s is not a file or directory.\n", name);
 		return;
+	}
+}
+
+void
+mapFile(char* infile, char* numberOfMappers)
+{
+	int len;
+	char* file;
+
+	len = strlen(infile) + strlen(numberOfMappers) + 1;
+	file = (char*) calloc(len, sizeof(char));
+	strcat(file, infile);
+	strcat(file, ".0\0");
+
+	readFile(file, global_wdptr);
+}
+
+void
+printHH(wordDictionaryPtr wdptr) {
+	wordDictionaryPtr tempPtr1, tempPtr2;
+	HASH_ITER(hh, wdptr, tempPtr1, tempPtr2) {
+		printf("key: %s, value: %d\n", tempPtr1->key, tempPtr1->value);
 	}
 }
 
@@ -183,6 +235,10 @@ main(int argc, char** argv)
 	output = fopen(outfile,"w");
 	// before reading in the file make sure to split, the file in 25 or less parts, in his example he uses 25 soooo im just going to use it for now
 	splitFile(infile,numberOfMappers);
+	// map the generated files
+	mapFile(infile, numberOfMappers);
+
+	printHH(global_wdptr);
 
 	// print the file specified by the second argument in the command line uncomment this if you want to print the file
 	//readFile(infile);
