@@ -75,10 +75,7 @@ addWord(char* word, wordDictionaryPtr wdptr)
     }
     printf("The number of things in the hash is %d\n",HASH_COUNT(wdptr));   	
     return wdptr;
-	
 }
-
-
 
 /*
  * @param fileName : the name of the file to be split into new files containing each 1000 orso to be read faster by the mappers
@@ -114,6 +111,28 @@ splitFile(char* fileName, char* numberOfPieces)
    		waitpid(childLabor, &returnStatus, 0);
     }
 }
+
+
+/**
+	This function will launch all the mappers, and the mappers as specified by the user each one getting a certain setion of the input file
+	@param numberOfMappers : number of mappers to be run at the same time
+	@param baseFileName : the base name of the file that was split via the split command
+	@param numberOfReducers : the number of reduces to be run at one time
+
+**/
+
+void runTheMappers(int numberOfMappers, char * baseFileName, int numberOfReducers)
+{
+
+	//Need to first find the ratio of the mappers and reducers so that we know how many mappers will correspond to a reducer
+	double ratio = numberOfMappers/numberOfReducers;
+	if(ratio < 1)
+	{
+		numberOfReducers = numberOfMappers;
+	}
+
+}
+
 
 
 /*
@@ -173,12 +192,16 @@ mapFile(char* infile, char* numberOfMappers)
 }
 
 void
-printHH(wordDictionaryPtr wdptr) {
-	wordDictionaryPtr tempPtr1, tempPtr2;
-	HASH_ITER(hh, wdptr, tempPtr1, tempPtr2) {
-		printf("key: %s, value: %d\n", tempPtr1->key, tempPtr1->value);
-	}
+print_words(wordDictionaryPtr wdptr) {
+    wordDictionaryPtr s;
+
+    for(s=wdptr; s != NULL; s=s->hh.next) {
+        printf("user id %s: name %d\n", s->key, s->value);
+    }
 }
+
+
+
 
 int
 main(int argc, char** argv)
@@ -243,7 +266,7 @@ main(int argc, char** argv)
 	// map the generated files
 	mapFile(infile, numberOfMappers);
 
-	printHH(global_wdptr);
+	print_words(global_wdptr);
 
 	// print the file specified by the second argument in the command line uncomment this if you want to print the file
 	//readFile(infile);
