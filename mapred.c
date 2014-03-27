@@ -32,12 +32,18 @@ wordDictionary
  */
 wordDictionaryPtr global_wdptr = NULL;
 
-wordDictionaryPtr
+/*wordDictionaryPtr
 findWord(char* word, wordDictionaryPtr wdptr)
 {
 	wordDictionaryPtr ptr;
 	HASH_FIND_STR(wdptr, word, ptr);
 	return ptr;
+}*/
+
+void
+incrementWord(wordDictionaryPtr wdptr)
+{
+	wdptr->value++;
 }
 
 /*
@@ -45,23 +51,34 @@ findWord(char* word, wordDictionaryPtr wdptr)
  *   then insert into the main hash.
  * @param word : word to be added to the hash table
  */
-void
+wordDictionaryPtr
 addWord(char* word, wordDictionaryPtr wdptr)
 {
-	wordDictionaryPtr addWord;
-	addWord = malloc(sizeof(struct wordDictionary));
-	addWord->key = (char*) calloc(strlen(word), sizeof(char));
-	strcpy(addWord->key, word);
-	addWord->value = 1;
+	wordDictionaryPtr tempNode = NULL;
+	HASH_FIND_STR( wdptr, word, tempNode);
+    if (tempNode)
+    {
+    	//Increment the count
+    	printf("ALREADY EXIST\n");
+    	incrementWord(tempNode);
+    }
+    else
+    {
+    	wordDictionaryPtr addWord;
+		addWord = malloc(sizeof(struct wordDictionary));
+		addWord->key = (char*) calloc(strlen(word), sizeof(char));
+		strcpy(addWord->key, word);
+		addWord->value = 1;
 
-	HASH_ADD_STR(wdptr, key, addWord);
+		HASH_ADD_STR(wdptr, key, addWord);
+	    
+    }
+    printf("The number of things in the hash is %d\n",HASH_COUNT(wdptr));   	
+    return wdptr;
+	
 }
 
-void
-incrementWord(wordDictionaryPtr wdptr)
-{
-	wdptr->value++;
-}
+
 
 /*
  * @param fileName : the name of the file to be split into new files containing each 1000 orso to be read faster by the mappers
@@ -123,27 +140,15 @@ readFile(char* name, wordDictionaryPtr wdptr)
 	//Make sure the file exists
 	if ((fp = fopen(name, "r")) != NULL) {
 		//Loop over the characters of the file in order to print them to the console
-		while (fgets(word, wordBufferSize, fp) != NULL) {
+		while (fgets(word, wordBufferSize, fp) != NULL) 
+		{
 			token = strtok(word, " .,:;!?/\'\"*#-_<>()~1234567890\r\n");
-			while (token) {
+			while (token) 
+			{
     			printf("[%s]\n",token);
-
-    			tempWDPtr = findWord(token, wdptr);
-    			if (tempWDPtr) { // if word already exist
-    				printf("ALREADY EXIST\n");
-    				incrementWord(tempWDPtr);
-    			} else { // if no word is found
-    				printf("DOESNT EXIST\n");
-    				addWord(token, wdptr);
-    				if (findWord(token, wdptr)) {
-    					printf("SAVED!\n");
-    				} else {
-    					printf("BROKEN\n");
-    				}
-    			}
-
+    			wdptr = addWord(token, wdptr);
     			token = strtok(NULL, " .,:;!?\'\"*#-_<>()~1234567890\r\n");
-			}
+    		}
 		}
     	//Close the file after reading
 		fclose(fp);
