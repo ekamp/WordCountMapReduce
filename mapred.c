@@ -139,7 +139,7 @@ void runTheMappers(int numberOfMappers, char * baseFileName, int numberOfReducer
  * This funciton reads in a file and prints it to the console taking in the name of the file as input.
  * @param name : String that contains the name of the input file
  */
-void
+wordDictionaryPtr
 readFile(char* name, wordDictionaryPtr wdptr) 
 {
 	int c;
@@ -154,7 +154,7 @@ readFile(char* name, wordDictionaryPtr wdptr)
 
 	//Check to make sure the name is legal
 	if(name == NULL || name[strlen(name)-1] == '.') {
-		return;
+		return NULL;
 	}
 	//Make sure the file exists
 	if ((fp = fopen(name, "r")) != NULL) {
@@ -173,22 +173,26 @@ readFile(char* name, wordDictionaryPtr wdptr)
 		fclose(fp);
 	} else {
 		fprintf(stderr , "ERROR: %s is not a file or directory.\n", name);
-		return;
+		return NULL;
 	}
+	return wdptr;
 }
 
-void
+wordDictionaryPtr
 mapFile(char* infile, char* numberOfMappers)
 {
 	int len;
 	char* file;
+
+	wordDictionaryPtr holder;
 
 	len = strlen(infile) + strlen(numberOfMappers) + 1;
 	file = (char*) calloc(len, sizeof(char));
 	strcat(file, infile);
 	strcat(file, ".0\0");
 
-	readFile(file, global_wdptr);
+	holder = readFile(file, global_wdptr);
+	return holder;
 }
 
 void
@@ -196,7 +200,7 @@ print_words(wordDictionaryPtr wdptr) {
     wordDictionaryPtr s;
 
     for(s=wdptr; s != NULL; s=s->hh.next) {
-        printf("user id %s: name %d\n", s->key, s->value);
+        printf("Key %s: Value %d\n", s->key, s->value);
     }
 }
 
@@ -264,8 +268,9 @@ main(int argc, char** argv)
 	// before reading in the file make sure to split, the file in 25 or less parts, in his example he uses 25 soooo im just going to use it for now
 	splitFile(infile,numberOfMappers);
 	// map the generated files
-	mapFile(infile, numberOfMappers);
+	global_wdptr = mapFile(infile, numberOfMappers);
 
+	printf("\nAt the end there are : %d number of items in the hash \n",HASH_COUNT(global_wdptr));
 	print_words(global_wdptr);
 
 	// print the file specified by the second argument in the command line uncomment this if you want to print the file
