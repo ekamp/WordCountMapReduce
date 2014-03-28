@@ -15,23 +15,9 @@
 #include <math.h>
 #include <pthread.h>
 #include "uthash.h"
+#include "mapred.h"
 
 #define wordBufferSize 4096
-
-// Initializing the struct to be used for the hashmap
-struct
-wordDictionary
-{
-	char* key; // using the word as the key
-	int value; // number of occurrence of the word
-	UT_hash_handle hh;	
-}; typedef struct wordDictionary *wordDictionaryPtr;
-
-typedef struct {
-	int id;
-	char* file;
-	wordDictionaryPtr wdptr;	
-} _thread_id;
 
 /*
  * @param word : the desired word that one wishes to know the value of it is the ket and this will get the value
@@ -80,7 +66,8 @@ addWord(char* word, wordDictionaryPtr* wdptr)
 }
 
 int
-sortWord(wordDictionaryPtr ptr1, wordDictionaryPtr ptr2) {
+sortWord(wordDictionaryPtr ptr1, wordDictionaryPtr ptr2)
+{
     return strcmp(ptr1->key, ptr2->key);
 }
 
@@ -129,7 +116,8 @@ splitFile(char* fileName, char* numberOfPieces)
 }
 
 void
-free_uthash(wordDictionaryPtr wdptr) {
+free_uthash(wordDictionaryPtr wdptr)
+{
 	wordDictionaryPtr ptr;
 
     for(ptr = wdptr; ptr != NULL; ptr = ptr->hh.next) {
@@ -217,8 +205,8 @@ mapFile(char* infile, int fileNum, wordDictionaryPtr *holder)
 	//free_uthash(holder);
 }
 
-void
-*mapperController(void *arg)
+void*
+mapperController(void *arg)
 {
 	_thread_id *p = (_thread_id *)arg;
 	//printf("Hello from node %d\n", p->id);
@@ -242,7 +230,8 @@ masterReduce(wordDictionaryPtr *master,wordDictionaryPtr *wdptr)
  *	@param baseFileName : the base name of the file that was split via the split command
  *	@param numberOfReducers : the number of reduces to be run at one time
  */
-void runTheMappers(int numberOfMappers, char* baseFileName, int numberOfReducers)
+void
+runTheMappers(int numberOfMappers, char* baseFileName, int numberOfReducers)
 {
 	int i, r;
 	pthread_t *threads;
