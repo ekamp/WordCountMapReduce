@@ -20,11 +20,6 @@
 
 #define wordBufferSize 4096
 
-typedef struct {
-	int id;
-	char* file;
-} _thread_id;
-
 // Initializing the struct to be used for the hashmap
 struct
 wordDictionary
@@ -34,10 +29,37 @@ wordDictionary
 	UT_hash_handle hh;	
 }; typedef struct wordDictionary *wordDictionaryPtr;
 
+typedef struct {
+	int id;
+	char* file;
+	wordDictionaryPtr wdptr;	
+} _thread_id;
+
 /*
  * @param word : the desired word that one wishes to know the value of it is the ket and this will get the value
  */
 wordDictionaryPtr global_wdptr = NULL;
+
+
+
+void
+addWordReduce(char* word, wordDictionaryPtr* wdptr,int count)
+{
+	wordDictionaryPtr tempNode = NULL;
+	HASH_FIND_STR(*wdptr, word, tempNode);
+    if (tempNode) {
+    	tempNode->value+= count;
+    } else {
+    	wordDictionaryPtr addWord;
+		addWord = malloc(sizeof(struct wordDictionary));
+		addWord->key = (char*) calloc(strlen(word), sizeof(char));
+		strcpy(addWord->key, word);
+		addWord->value = 1;
+
+		HASH_ADD_STR(*wdptr, key, addWord);   
+    }
+}
+
 
 /*wordDictionaryPtr
 findWord(char* word, wordDictionaryPtr wdptr)
@@ -111,6 +133,7 @@ splitFile(char* fileName, char* numberOfPieces)
         printf("Exit status of %d was %d (%s)\n", (int)lazyParent, status,
                (status > 0) ? "accept" : "reject");
     }
+    printf("\n Done with the splitting \n");
 }
 
 void
@@ -145,9 +168,13 @@ readFile(char* name, wordDictionaryPtr* wdptr)
 	struct dirent *data;
 	char *nextName,
 		 *relPath,
-		 *token;
+		 *token,
+		 *saveptr;
 	char word[wordBufferSize];
 	wordDictionaryPtr tempWDPtr;
+
+
+	//printf("\nThe name of the file is |%s| \n",name);
 
 	//Check to make sure the name is legal
 	if(name == NULL || name[strlen(name)-1] == '.') {
@@ -158,14 +185,10 @@ readFile(char* name, wordDictionaryPtr* wdptr)
 	if ((fp = fopen(name, "r")) != NULL) {
 		//Loop over the characters of the file in order to print them to the console
 		while (fgets(word, wordBufferSize, fp) != NULL)  {
-			//if (strcmp(name, "testfile.txt.0") == 0)
-			//	printf("%s\n", word);
-			token = strtok(word, " .,:;!?/\'\"*#-_<>()~1234567890\r\n");
+			token = strtok_r(word, " .,:;!?/\'\"*#-_<>()~1234567890\r\n",&saveptr);
 			while (token) {
-				if (strcmp(name, "testfile.txt.0") == 0)
-    				printf("[%s]\n",token);
     			addWord(token, wdptr);
-    			token = strtok(NULL, " .,:;!?\'\"*#-_<>()~1234567890\r\n");
+    			token = strtok_r(NULL, " .,:;!?\'\"*#-_<>()~1234567890\r\n",&saveptr);
     		}
 		}
 		fclose(fp);
@@ -175,11 +198,11 @@ readFile(char* name, wordDictionaryPtr* wdptr)
 }
 
 void
-mapFile(char* infile, int fileNum)
+mapFile(char* infile, int fileNum, wordDictionaryPtr *holder)
 {
 	int len;
 	char *file, *buffer;
-	wordDictionaryPtr holder = NULL;
+	//wordDictionaryPtr holder = NULL;
 
 	if (fileNum == 0)
 		len = 1;
@@ -194,25 +217,35 @@ mapFile(char* infile, int fileNum)
 	strcat(file, buffer);
 	strcat(file, "\0");
 
-	//printf("Filepath: %s\n", file);
-	readFile(file, &holder);
-/*
-	if (fileNum == 0) {
-		print_words(&holder);
-		printf("The number of things in the hash is %d\n",HASH_COUNT(holder));   
-	}
-*/
-	free_uthash(holder);
+	printf("Filepath: %s\n", file);
+	readFile(file, holder);
+
+		//print_words(holder);
+		printf("The number of things in the hash is %d\n",HASH_COUNT(*holder));   
+
+	//free_uthash(holder);
 }
 
 void
 *mapperController(void *arg)
 {
 	_thread_id *p = (_thread_id *)arg;
-	printf("Hello from node %d\n", p->id);
-	mapFile(p->file, p->id);
+	//printf("Hello from node %d\n", p->id);
+	mapFile(p->file, p->id, &(p->wdptr) );
 	return (NULL);
 }
+
+void
+masterReduce(wordDictionaryPtr *master,wordDictionaryPtr *wdptr)
+{
+	wordDictionaryPtr s;
+
+    for(s = *wdptr; s != NULL; s = s->hh.next) {
+    	addWordReduce(s->key, master, s->value);
+    }
+}
+
+
 
 /**
 	This function will launch all the mappers, and the mappers as specified by the user each one getting a certain setion of the input file
@@ -223,7 +256,7 @@ void
 
 void runTheMappers(int numberOfMappers, char* baseFileName, int numberOfReducers)
 {
-	int i;
+	int i, r;
 	pthread_t *threads;
 	pthread_attr_t pthread_custom_attr;
 	_thread_id *p;
@@ -238,6 +271,7 @@ void runTheMappers(int numberOfMappers, char* baseFileName, int numberOfReducers
 		p[i].id = i;
 		p[i].file = (char*) calloc(strlen(baseFileName), sizeof(char));
 		strcpy(p[i].file, baseFileName);
+		p[i].wdptr = NULL;
 		pthread_create(&threads[i], &pthread_custom_attr, mapperController, (void *)(p+i));
 	}
 
@@ -246,6 +280,30 @@ void runTheMappers(int numberOfMappers, char* baseFileName, int numberOfReducers
 	for (i = 0; i < numberOfMappers; i++) {
 		pthread_join(threads[i],NULL);
 	}
+
+
+	/*if(numberOfMappers >= (2*numberOfReducers))
+	{
+		for (i = 0, r = 0; i < numberOfMappers; i++, r++) {
+			if (r > numberOfReducers)
+				r = 0;
+			reducers()
+		}
+	}
+	else
+	{
+		masterReduce();
+	}*/
+
+	
+	for (i = 0; i < numberOfMappers; i++) {
+	
+		masterReduce(&global_wdptr,&(p[i].wdptr));
+		//print_words(&(p[i].wdptr));
+		printf("The number of things in the hash is %d\n",HASH_COUNT(p[i].wdptr));   
+	}
+	print_words(&global_wdptr);
+	printf("The number of things in the hash is %d\n",HASH_COUNT(global_wdptr));
 }
 
 int
@@ -313,6 +371,6 @@ main(int argc, char** argv)
 	runTheMappers(atoi(numberOfMappers), infile, numberOfReducers);
 
 	fclose(output);
-	//deleteGeneratedFiles(infile);
+	deleteGeneratedFiles(infile);
 	return 0;
 }
