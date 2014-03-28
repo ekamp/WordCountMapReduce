@@ -14,9 +14,16 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <math.h>
+#include <pthread.h>
 #include "uthash.h"
 
 #define wordBufferSize 4096
+
+typedef struct {
+	int id;
+	char* file;
+} _thread_id;
 
 // Initializing the struct to be used for the hashmap
 struct
@@ -51,8 +58,6 @@ addWord(char* word, wordDictionaryPtr* wdptr)
 	wordDictionaryPtr tempNode = NULL;
 	HASH_FIND_STR(*wdptr, word, tempNode);
     if (tempNode) {
-    	//Increment the count
-    	printf("ALREADY EXIST\n");
     	tempNode->value++;
     } else {
     	wordDictionaryPtr addWord;
@@ -63,7 +68,6 @@ addWord(char* word, wordDictionaryPtr* wdptr)
 
 		HASH_ADD_STR(*wdptr, key, addWord);   
     }
-    printf("The number of things in the hash is %d\n",HASH_COUNT(*wdptr));   	
 }
 
 /*
@@ -85,9 +89,12 @@ deleteGeneratedFiles(char* file)
 void
 splitFile(char* fileName, char* numberOfPieces)
 {
-	pid_t childLabor;
+	pid_t childLabor, lazyParent;
+	int status = 0;
 	childLabor = fork();
     if (childLabor == 0) {
+    	printf("In child process (pid = %d)\n", getpid());
+
     	char* splitFile[] = {"./split.sh", fileName, numberOfPieces, '\0'};
 
 	    if (execvp("./split.sh",splitFile) < 0) {
@@ -96,83 +103,24 @@ splitFile(char* fileName, char* numberOfPieces)
     } else if (childLabor < 0) {
     	perror("child");
     } else {
-    	int returnStatus;    
-   		waitpid(childLabor, &returnStatus, 0);
+    	//int returnStatus;    
+   		//waitpid(childLabor, &returnStatus, 0);
+    }
+
+    while ((lazyParent = wait(&status)) > 0) {
+        printf("Exit status of %d was %d (%s)\n", (int)lazyParent, status,
+               (status > 0) ? "accept" : "reject");
     }
 }
 
-
-/**
-	This function will launch all the mappers, and the mappers as specified by the user each one getting a certain setion of the input file
-	@param numberOfMappers : number of mappers to be run at the same time
-	@param baseFileName : the base name of the file that was split via the split command
-	@param numberOfReducers : the number of reduces to be run at one time
-
-**/
 void
-runTheMappers(int numberOfMappers, char * baseFileName, int numberOfReducers)
-{
-	//Need to first find the ratio of the mappers and reducers so that we know how many mappers will correspond to a reducer
-	double ratio = numberOfMappers/numberOfReducers;
-	if(ratio < 1)
-	{
-		numberOfReducers = numberOfMappers;
-	}
+free_uthash(wordDictionaryPtr wdptr) {
+	wordDictionaryPtr ptr;
 
-}
-
-/*
- * This funciton reads in a file and prints it to the console taking in the name of the file as input.
- * @param name : String that contains the name of the input file
- */
-void
-readFile(char* name, wordDictionaryPtr* wdptr) 
-{
-	int c;
-	FILE* fp;
-	struct dirent *data;
-	char* nextName,
-		* relPath,
-		* token;
-	char word[wordBufferSize];
-	wordDictionaryPtr tempWDPtr;
-
-	//Check to make sure the name is legal
-	if(name == NULL || name[strlen(name)-1] == '.') {
-		return;
-	}
-
-	//Make sure the file exists
-	if ((fp = fopen(name, "r")) != NULL) {
-		//Loop over the characters of the file in order to print them to the console
-		while (fgets(word, wordBufferSize, fp) != NULL)  {
-			token = strtok(word, " .,:;!?/\'\"*#-_<>()~1234567890\r\n");
-			while (token) {
-    			printf("[%s]\n",token);
-    			addWord(token, wdptr);
-    			token = strtok(NULL, " .,:;!?\'\"*#-_<>()~1234567890\r\n");
-    		}
-		}
-		fclose(fp);
-	} else {
-		fprintf(stderr , "ERROR: %s is not a file or directory.\n", name);
-	}
-}
-
-void
-mapFile(char* infile, char* numberOfMappers)
-{
-	int len;
-	char* file;
-
-	wordDictionaryPtr holder;
-
-	len = strlen(infile) + strlen(numberOfMappers) + 1;
-	file = (char*) calloc(len, sizeof(char));
-	strcat(file, infile);
-	strcat(file, ".0\0");
-
-	readFile(file, &global_wdptr);
+    for(ptr = wdptr; ptr != NULL; ptr = ptr->hh.next) {
+    	HASH_DEL(wdptr, ptr);
+    	free(ptr);
+    }
 }
 
 void
@@ -185,17 +133,132 @@ print_words(wordDictionaryPtr* wdptr)
     }
 }
 
+/*
+ * This funciton reads in a file and prints it to the console taking in the name of the file as input.
+ * @param name : String that contains the name of the input file
+ */
+void
+readFile(char* name, wordDictionaryPtr* wdptr) 
+{
+	int c;
+	FILE* fp;
+	struct dirent *data;
+	char *nextName,
+		 *relPath,
+		 *token;
+	char word[wordBufferSize];
+	wordDictionaryPtr tempWDPtr;
+
+	//Check to make sure the name is legal
+	if(name == NULL || name[strlen(name)-1] == '.') {
+		return;
+	}
+
+	//Make sure the file exists
+	if ((fp = fopen(name, "r")) != NULL) {
+		//Loop over the characters of the file in order to print them to the console
+		while (fgets(word, wordBufferSize, fp) != NULL)  {
+			//if (strcmp(name, "testfile.txt.0") == 0)
+			//	printf("%s\n", word);
+			token = strtok(word, " .,:;!?/\'\"*#-_<>()~1234567890\r\n");
+			while (token) {
+				if (strcmp(name, "testfile.txt.0") == 0)
+    				printf("[%s]\n",token);
+    			addWord(token, wdptr);
+    			token = strtok(NULL, " .,:;!?\'\"*#-_<>()~1234567890\r\n");
+    		}
+		}
+		fclose(fp);
+	} else {
+		fprintf(stderr , "ERROR: %s is not a file or directory.\n", name);
+	}
+}
+
+void
+mapFile(char* infile, int fileNum)
+{
+	int len;
+	char *file, *buffer;
+	wordDictionaryPtr holder = NULL;
+
+	if (fileNum == 0)
+		len = 1;
+	else
+		len = floor(log10(abs(fileNum))) + 1;		
+
+	file = (char*) calloc(strlen(infile) + len + 2, sizeof(char));
+	buffer = (char*) calloc(len, sizeof(char));
+	sprintf(buffer, "%d", fileNum);
+	strcat(file, infile);
+	strcat(file, ".");
+	strcat(file, buffer);
+	strcat(file, "\0");
+
+	//printf("Filepath: %s\n", file);
+	readFile(file, &holder);
+/*
+	if (fileNum == 0) {
+		print_words(&holder);
+		printf("The number of things in the hash is %d\n",HASH_COUNT(holder));   
+	}
+*/
+	free_uthash(holder);
+}
+
+void
+*mapperController(void *arg)
+{
+	_thread_id *p = (_thread_id *)arg;
+	printf("Hello from node %d\n", p->id);
+	mapFile(p->file, p->id);
+	return (NULL);
+}
+
+/**
+	This function will launch all the mappers, and the mappers as specified by the user each one getting a certain setion of the input file
+	@param numberOfMappers : number of mappers to be run at the same time
+	@param baseFileName : the base name of the file that was split via the split command
+	@param numberOfReducers : the number of reduces to be run at one time
+**/
+
+void runTheMappers(int numberOfMappers, char* baseFileName, int numberOfReducers)
+{
+	int i;
+	pthread_t *threads;
+	pthread_attr_t pthread_custom_attr;
+	_thread_id *p;
+
+	threads = (pthread_t *) malloc(numberOfMappers*sizeof(*threads));
+	pthread_attr_init(&pthread_custom_attr);
+
+	p = (_thread_id *) malloc(sizeof(_thread_id)*numberOfMappers);
+	/* Start up thread */
+
+	for (i = 0; i < numberOfMappers; i++) {
+		p[i].id = i;
+		p[i].file = (char*) calloc(strlen(baseFileName), sizeof(char));
+		strcpy(p[i].file, baseFileName);
+		pthread_create(&threads[i], &pthread_custom_attr, mapperController, (void *)(p+i));
+	}
+
+	/* Synchronize the completion of each thread. */
+
+	for (i = 0; i < numberOfMappers; i++) {
+		pthread_join(threads[i],NULL);
+	}
+}
+
 int
 main(int argc, char** argv)
 {
 	FILE* output;
 	char safety,
 		 tooMany;
-	char* typeOfRun,
-		* threadOrProc,
-		* infile,
-		* outfile,
-		* numberOfMappers;
+	char *typeOfRun,
+		 *threadOrProc,
+		 *infile,
+		 *outfile,
+		 *numberOfMappers;
 	int numberOfReducers;
 
 	// inputs from the command line are as follows (11 inputs including the .o file)
@@ -244,16 +307,12 @@ main(int argc, char** argv)
 	output = fopen(outfile,"w");
 	// before reading in the file make sure to split, the file in 25 or less parts, in his example he uses 25 soooo im just going to use it for now
 	splitFile(infile,numberOfMappers);
-	// map the generated files
-	mapFile(infile, numberOfMappers);
 
 	printf("\nAt the end there are : %d number of items in the hash \n", HASH_COUNT(global_wdptr));
-	print_words(&global_wdptr);
 
-	// print the file specified by the second argument in the command line uncomment this if you want to print the file
-	//readFile(infile);
+	runTheMappers(atoi(numberOfMappers), infile, numberOfReducers);
+
 	fclose(output);
-
-	deleteGeneratedFiles(infile);
+	//deleteGeneratedFiles(infile);
 	return 0;
 }
