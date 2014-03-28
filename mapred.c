@@ -3,8 +3,6 @@
  * @RUID: 128-00-2637
  * @author: Erik Kamp
  * @RUID: 132-00-4838
- * @author: Sharlina Keshava
- * @RUID: 140-00-9007
  */
 
 #include <stdio.h>
@@ -40,8 +38,6 @@ typedef struct {
  */
 wordDictionaryPtr global_wdptr = NULL;
 
-
-
 void
 addWordReduce(char* word, wordDictionaryPtr* wdptr,int count)
 {
@@ -59,15 +55,6 @@ addWordReduce(char* word, wordDictionaryPtr* wdptr,int count)
 		HASH_ADD_STR(*wdptr, key, addWord);   
     }
 }
-
-
-/*wordDictionaryPtr
-findWord(char* word, wordDictionaryPtr wdptr)
-{
-	wordDictionaryPtr ptr;
-	HASH_FIND_STR(wdptr, word, ptr);
-	return ptr;
-}*/
 
 /*
  * Create a new hash struct with the given word,
@@ -90,6 +77,11 @@ addWord(char* word, wordDictionaryPtr* wdptr)
 
 		HASH_ADD_STR(*wdptr, key, addWord);   
     }
+}
+
+int
+sortWord(wordDictionaryPtr ptr1, wordDictionaryPtr ptr2) {
+    return strcmp(ptr1->key, ptr2->key);
 }
 
 /*
@@ -115,7 +107,7 @@ splitFile(char* fileName, char* numberOfPieces)
 	int status = 0;
 	childLabor = fork();
     if (childLabor == 0) {
-    	printf("In child process (pid = %d)\n", getpid());
+    	//printf("In child process (pid = %d)\n", getpid());
 
     	char* splitFile[] = {"./split.sh", fileName, numberOfPieces, '\0'};
 
@@ -130,10 +122,10 @@ splitFile(char* fileName, char* numberOfPieces)
     }
 
     while ((lazyParent = wait(&status)) > 0) {
-        printf("Exit status of %d was %d (%s)\n", (int)lazyParent, status,
-               (status > 0) ? "accept" : "reject");
+        //printf("Exit status of %d was %d (%s)\n", (int)lazyParent, status,
+        //       (status > 0) ? "accept" : "reject");
     }
-    printf("\n Done with the splitting \n");
+    //printf("\n Done with the splitting \n");
 }
 
 void
@@ -217,11 +209,10 @@ mapFile(char* infile, int fileNum, wordDictionaryPtr *holder)
 	strcat(file, buffer);
 	strcat(file, "\0");
 
-	printf("Filepath: %s\n", file);
 	readFile(file, holder);
 
-		//print_words(holder);
-		printf("The number of things in the hash is %d\n",HASH_COUNT(*holder));   
+	//print_words(holder);
+	printf("%s.%d have %d words\n", infile, fileNum, HASH_COUNT(*holder));   
 
 	//free_uthash(holder);
 }
@@ -245,15 +236,12 @@ masterReduce(wordDictionaryPtr *master,wordDictionaryPtr *wdptr)
     }
 }
 
-
-
-/**
-	This function will launch all the mappers, and the mappers as specified by the user each one getting a certain setion of the input file
-	@param numberOfMappers : number of mappers to be run at the same time
-	@param baseFileName : the base name of the file that was split via the split command
-	@param numberOfReducers : the number of reduces to be run at one time
-**/
-
+/* 
+ *	This function will launch all the mappers, and the mappers as specified by the user each one getting a certain setion of the input file
+ *	@param numberOfMappers : number of mappers to be run at the same time
+ *	@param baseFileName : the base name of the file that was split via the split command
+ *	@param numberOfReducers : the number of reduces to be run at one time
+ */
 void runTheMappers(int numberOfMappers, char* baseFileName, int numberOfReducers)
 {
 	int i, r;
@@ -281,29 +269,61 @@ void runTheMappers(int numberOfMappers, char* baseFileName, int numberOfReducers
 		pthread_join(threads[i],NULL);
 	}
 
-
-	/*if(numberOfMappers >= (2*numberOfReducers))
-	{
+	/*if(numberOfMappers >= (2*numberOfReducers)) {
 		for (i = 0, r = 0; i < numberOfMappers; i++, r++) {
 			if (r > numberOfReducers)
 				r = 0;
 			reducers()
 		}
-	}
-	else
-	{
+	} else {
 		masterReduce();
 	}*/
-
 	
 	for (i = 0; i < numberOfMappers; i++) {
-	
-		masterReduce(&global_wdptr,&(p[i].wdptr));
-		//print_words(&(p[i].wdptr));
-		printf("The number of things in the hash is %d\n",HASH_COUNT(p[i].wdptr));   
+		masterReduce(&global_wdptr,&(p[i].wdptr)); 
 	}
-	print_words(&global_wdptr);
-	printf("The number of things in the hash is %d\n",HASH_COUNT(global_wdptr));
+/*
+	for (i = 0; i < numberOfMappers; i++) {
+		free_uthash(p[i].wdptr);
+		free(p[i].file);
+	}
+*/
+}
+
+void
+writeWordCount(char* file, wordDictionaryPtr* wdptr)
+{
+	FILE* fp;
+	wordDictionaryPtr ptr;
+
+	if ((fp = fopen(file, "w+")) != NULL) {
+		//fprintf(fp, "Start of word count.\n");
+		//fprintf(fp, "Total words = %d\n", HASH_COUNT(*wdptr));
+
+	    for(ptr = *wdptr; ptr != NULL; ptr = ptr->hh.next)
+			fprintf(fp, "%s : %d\n", ptr->key, ptr->value);
+	}
+
+	fclose(fp);
+}
+
+void
+writeWordSort(char* file, wordDictionaryPtr* wdptr)
+{
+	FILE* fp;
+	wordDictionaryPtr ptr;
+
+	if ((fp = fopen(file, "w+")) != NULL) {
+		//fprintf(fp, "Start of sort.\n");
+		//fprintf(fp, "Total words = %d\n", HASH_COUNT(*wdptr));
+
+		HASH_SORT(*wdptr, sortWord);
+
+	    for(ptr = *wdptr; ptr != NULL; ptr = ptr->hh.next)
+	        fprintf(fp, "%s\n", ptr->key);
+	}
+
+	fclose(fp);
 }
 
 int
@@ -335,8 +355,8 @@ main(int argc, char** argv)
 	infile = argv[9];
 	outfile = argv[10];
 
-	printf("Type of run is : %s\nWe are running on : %s\nThe number of mappers we have is : %s\nThe number of reducers is : %i\nThe input file name is : %s\nThe output file name is : %s\nThe number of args we have is : %i\n",
-		typeOfRun,threadOrProc,numberOfMappers,numberOfReducers,infile,outfile,argc);
+	//printf("Type of run is : %s\nWe are running on : %s\nThe number of mappers we have is : %s\nThe number of reducers is : %i\nThe input file name is : %s\nThe output file name is : %s\nThe number of args we have is : %i\n",
+	//	typeOfRun,threadOrProc,numberOfMappers,numberOfReducers,infile,outfile,argc);
 
 	// if incorrect number of arguments
 	if (argc != 11) {
@@ -352,7 +372,7 @@ main(int argc, char** argv)
 		return 0;
 	}
 
-	if ((output = fopen(outfile,"r")) != NULL) {
+	if ((output = fopen(outfile, "r")) != NULL) {
 		fclose(output);
 		fprintf(stdout, "The file designated for output already exists, are you sure you wish to overwite it? (y/n): ");
 		if(fscanf(stdin, "%c%c", &safety, &tooMany)!=2||safety!='y'||tooMany!='\n') {
@@ -366,9 +386,12 @@ main(int argc, char** argv)
 	// before reading in the file make sure to split, the file in 25 or less parts, in his example he uses 25 soooo im just going to use it for now
 	splitFile(infile,numberOfMappers);
 
-	printf("\nAt the end there are : %d number of items in the hash \n", HASH_COUNT(global_wdptr));
-
 	runTheMappers(atoi(numberOfMappers), infile, numberOfReducers);
+
+	if (strcmp(typeOfRun, "sort") == 0)
+		writeWordSort(outfile, &global_wdptr);
+	else
+		writeWordCount(outfile, &global_wdptr);
 
 	fclose(output);
 	deleteGeneratedFiles(infile);
