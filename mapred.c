@@ -94,8 +94,6 @@ splitFile(char* fileName, char* numberOfPieces)
 	int status = 0;
 	childLabor = fork();
     if (childLabor == 0) {
-    	//printf("In child process (pid = %d)\n", getpid());
-
     	char* splitFile[] = {"./split.sh", fileName, numberOfPieces, '\0'};
 
 	    if (execvp("./split.sh",splitFile) < 0) {
@@ -109,10 +107,8 @@ splitFile(char* fileName, char* numberOfPieces)
     }
 
     while ((lazyParent = wait(&status)) > 0) {
-        //printf("Exit status of %d was %d (%s)\n", (int)lazyParent, status,
-        //       (status > 0) ? "accept" : "reject");
+    	// wait for child to finish
     }
-    //printf("\n Done with the splitting \n");
 }
 
 void
@@ -165,10 +161,10 @@ readFile(char* name, wordDictionaryPtr* wdptr)
 	if ((fp = fopen(name, "r")) != NULL) {
 		//Loop over the characters of the file in order to print them to the console
 		while (fgets(word, wordBufferSize, fp) != NULL)  {
-			token = strtok_r(word, " .,:;!?/\'\"*#-_<>()~1234567890\r\n",&saveptr);
+			token = strtok_r(word, " .,:;!?&$@|[]{}/\'\"*#-_<>()~\r\n",&saveptr);
 			while (token) {
     			addWord(token, wdptr);
-    			token = strtok_r(NULL, " .,:;!?\'\"*#-_<>()~1234567890\r\n",&saveptr);
+    			token = strtok_r(NULL, " .,:;!?&$@|[]{}/\'\"*#-_<>()~\r\n",&saveptr);
     		}
 		}
 		fclose(fp);
@@ -182,7 +178,6 @@ mapFile(char* infile, int fileNum, wordDictionaryPtr *holder)
 {
 	int len;
 	char *file, *buffer;
-	//wordDictionaryPtr holder = NULL;
 
 	if (fileNum == 0)
 		len = 1;
@@ -199,17 +194,13 @@ mapFile(char* infile, int fileNum, wordDictionaryPtr *holder)
 
 	readFile(file, holder);
 
-	//print_words(holder);
 	printf("%s.%d have %d words\n", infile, fileNum, HASH_COUNT(*holder));   
-
-	//free_uthash(holder);
 }
 
 void*
 mapperController(void *arg)
 {
 	_thread_id *p = (_thread_id *)arg;
-	//printf("Hello from node %d\n", p->id);
 	mapFile(p->file, p->id, &(p->wdptr) );
 	return (NULL);
 }
@@ -253,30 +244,19 @@ runTheMappers(int numberOfMappers, char* baseFileName, int numberOfReducers)
 	}
 
 	/* Synchronize the completion of each thread. */
-
 	for (i = 0; i < numberOfMappers; i++) {
 		pthread_join(threads[i],NULL);
 	}
-
-	/*if(numberOfMappers >= (2*numberOfReducers)) {
-		for (i = 0, r = 0; i < numberOfMappers; i++, r++) {
-			if (r > numberOfReducers)
-				r = 0;
-			reducers()
-		}
-	} else {
-		masterReduce();
-	}*/
 	
 	for (i = 0; i < numberOfMappers; i++) {
 		masterReduce(&global_wdptr,&(p[i].wdptr)); 
 	}
-/*
+
 	for (i = 0; i < numberOfMappers; i++) {
 		free_uthash(p[i].wdptr);
 		free(p[i].file);
 	}
-*/
+
 }
 
 void
@@ -286,9 +266,6 @@ writeWordCount(char* file, wordDictionaryPtr* wdptr)
 	wordDictionaryPtr ptr;
 
 	if ((fp = fopen(file, "w+")) != NULL) {
-		//fprintf(fp, "Start of word count.\n");
-		//fprintf(fp, "Total words = %d\n", HASH_COUNT(*wdptr));
-
 	    for(ptr = *wdptr; ptr != NULL; ptr = ptr->hh.next)
 			fprintf(fp, "%s : %d\n", ptr->key, ptr->value);
 	}
@@ -303,9 +280,6 @@ writeWordSort(char* file, wordDictionaryPtr* wdptr)
 	wordDictionaryPtr ptr;
 
 	if ((fp = fopen(file, "w+")) != NULL) {
-		//fprintf(fp, "Start of sort.\n");
-		//fprintf(fp, "Total words = %d\n", HASH_COUNT(*wdptr));
-
 		HASH_SORT(*wdptr, sortWord);
 
 	    for(ptr = *wdptr; ptr != NULL; ptr = ptr->hh.next)
@@ -318,7 +292,8 @@ writeWordSort(char* file, wordDictionaryPtr* wdptr)
 int
 main(int argc, char** argv)
 {
-	FILE* output;
+	FILE *input,
+		 *output;
 	char safety,
 		 tooMany;
 	char *typeOfRun,
@@ -328,14 +303,6 @@ main(int argc, char** argv)
 		 *numberOfMappers;
 	int numberOfReducers;
 
-	// inputs from the command line are as follows (11 inputs including the .o file)
-	//-a [wordcount,sort]   : states whether the user wants to use the wordcount mapred or int sort mapred (typeOfRun)
-	//-i [procs,threads]    : states whether the user wishes to use processes or threads (threadOrProc)
-	//-m num_maps 			: provides the number of mappers for the program (numberOfMappers)
-	//-r num_reducers		: provides the number of reducers for the program (numberOfReducers)
-	//infile 				: the file to be read in by the program (infile)
-	//outfile				: the file to be writen to by the program (outfile)
-
 	// assign the variables from the input taken from the command line args
 	typeOfRun = argv[2];
 	threadOrProc = argv[4];
@@ -344,12 +311,14 @@ main(int argc, char** argv)
 	infile = argv[9];
 	outfile = argv[10];
 
-	//printf("Type of run is : %s\nWe are running on : %s\nThe number of mappers we have is : %s\nThe number of reducers is : %i\nThe input file name is : %s\nThe output file name is : %s\nThe number of args we have is : %i\n",
-	//	typeOfRun,threadOrProc,numberOfMappers,numberOfReducers,infile,outfile,argc);
-
 	// if incorrect number of arguments
 	if (argc != 11) {
 		fprintf(stderr, "ERROR: Incorrect number of arguments\n");
+		return 0;
+	}
+
+	if (strcmp(threadOrProc, "threads") != 0) {
+		fprintf(stderr, "The program will only run threads!\nEnding program.\n");
 		return 0;
 	}
 
@@ -359,6 +328,14 @@ main(int argc, char** argv)
 		strcmp(outfile,"readme.pdf") == 0) {
 		fprintf(stderr, "Please don't try to overwrite our sourcefiles with the output\n");
 		return 0;
+	}
+
+	if ((input = fopen(infile, "r")) == NULL) {
+		fclose(input);
+		fprintf(stderr, "The input file, %s, does not exist!\nEnding program.\n", infile);
+		return 0;
+	} else {
+		fclose(input);
 	}
 
 	if ((output = fopen(outfile, "r")) != NULL) {
@@ -374,13 +351,14 @@ main(int argc, char** argv)
 	output = fopen(outfile,"w");
 	// before reading in the file make sure to split, the file in 25 or less parts, in his example he uses 25 soooo im just going to use it for now
 	splitFile(infile,numberOfMappers);
-
+	// run the mappers
 	runTheMappers(atoi(numberOfMappers), infile, numberOfReducers);
-
-	if (strcmp(typeOfRun, "sort") == 0)
+	// check if output in word count format or sort format
+	if (strcmp(typeOfRun, "sort") == 0) {
 		writeWordSort(outfile, &global_wdptr);
-	else
+	} else {
 		writeWordCount(outfile, &global_wdptr);
+	}
 
 	fclose(output);
 	deleteGeneratedFiles(infile);

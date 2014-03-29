@@ -8,7 +8,8 @@ wordDictionary
 }; typedef struct wordDictionary *wordDictionaryPtr;
 
 // struct for sorting thread information
-typedef struct {
+typedef struct 
+{
 	int id;
 	char* file;
 	wordDictionaryPtr wdptr;	
